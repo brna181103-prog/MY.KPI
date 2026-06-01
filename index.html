@@ -1,0 +1,136 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>MY.KPI</title>
+<style>
+body{margin:0;background:#0b0b0b;color:#fff;font-family:Arial,sans-serif}
+.container{max-width:1200px;margin:auto;padding:20px}
+h1{color:#d4af37;text-align:center}
+.card,.section,.podium-card{background:#111;border:1px solid #d4af37;border-radius:14px}
+.cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:15px}
+.card{padding:20px}
+.value{font-size:32px;color:#d4af37}
+.podium{display:grid;grid-template-columns:repeat(3,1fr);gap:15px;margin:20px 0}
+.podium-card{padding:15px;text-align:center}
+select,.btn{background:#111;color:#fff;border:1px solid #d4af37;border-radius:10px;padding:10px}
+.btn{text-decoration:none;display:inline-block}
+table{width:100%;border-collapse:collapse}
+th,td{padding:10px;border-bottom:1px solid #333}
+th{color:#d4af37}
+.section{padding:20px;margin-top:20px}
+</style>
+</head>
+<body>
+<div class="container">
+<h1>MY.KPI</h1>
+<p style="color:#888;text-align:center;margin-top:-10px;">
+Employee Performance Management System
+</p>
+
+<p style="text-align:center">
+<a class="btn" href="https://docs.google.com/forms/d/14BzGuUQB4omt-FFc6ASVdG7iaIK5yw99vjaiLTEeLK8/viewform" target="_blank">📝 Start Evaluation</a>
+</p>
+
+<div class="cards">
+<div class="card"><div>Total Evaluation</div><div id="total" class="value">0</div></div>
+<div class="card"><div>Average Score</div><div id="avg" class="value">0</div></div>
+<div class="card"><div>Best Employee</div><div id="best" class="value">-</div></div>
+<div class="card"><div>Departments</div><div id="depts" class="value">0</div></div>
+</div>
+
+<div class="section">
+<label>Month Filter:</label>
+<select id="monthFilter"><option value="ALL">ALL</option></select>
+</div>
+
+<div class="podium">
+<div class="podium-card"><h2>💎 Diamond MVP</h2><div id="mvp1">-</div></div>
+<div class="podium-card"><h2>🥇 Gold MVP</h2><div id="mvp2">-</div></div>
+<div class="podium-card"><h2>🥉 Bronze MVP</h2><div id="mvp3">-</div></div>
+</div>
+
+<div class="section">
+<h2>📈 Department Ranking</h2>
+<table><thead><tr><th>Rank</th><th>Department</th><th>Avg Score</th></tr></thead><tbody id="deptTable"></tbody></table>
+</div>
+
+<div class="section">
+<h2>🏆 Employee Leaderboard</h2>
+<table><thead><tr><th>Rank</th><th>Name</th><th>Department</th><th>Score</th><th>Status</th></tr></thead><tbody id="leaderboard"></tbody></table>
+</div>
+
+<div class="section">
+<h2>💬 Recent Comments</h2>
+<div id="comments"></div>
+</div>
+</div>
+
+<script>
+const API_URL="https://script.google.com/macros/s/AKfycbzD9BYCwBoAet2U0ENgDkzdBaG2YgaWbWCRrwQZoePBcBNlnqywsC1AEux0s3VczVxG/exec";
+let allData=[];
+
+fetch(API_URL).then(r=>r.json()).then(data=>{
+ allData=data.filter(x=>x.employee);
+ const months=[...new Set(allData.map(x=>x.month).filter(Boolean))];
+ const mf=document.getElementById("monthFilter");
+ months.sort().forEach(m=>{
+   let o=document.createElement("option");o.value=m;o.textContent=m;mf.appendChild(o);
+ });
+ mf.onchange=render;
+ render();
+});
+
+function render(){
+ const month=document.getElementById("monthFilter").value;
+ let data=allData.filter(x=>month==="ALL"||x.month===month);
+
+ const employeeMap={};
+ data.forEach(x=>{
+   if(!employeeMap[x.employee]) employeeMap[x.employee]={score:0,count:0,department:x.department,status:x.status};
+   employeeMap[x.employee].score+=Number(x.score||0);
+   employeeMap[x.employee].count++;
+ });
+ let leaderboard=Object.entries(employeeMap).map(([name,v])=>({
+   employee:name,
+   department:v.department,
+   score:(v.score/v.count),
+   status:v.status
+ })).sort((a,b)=>b.score-a.score);
+
+ document.getElementById("total").innerText=data.length;
+ document.getElementById("avg").innerText=(leaderboard.reduce((a,b)=>a+b.score,0)/(leaderboard.length||1)).toFixed(2);
+ document.getElementById("best").innerText=leaderboard[0]?.employee||"-";
+ document.getElementById("depts").innerText=new Set(data.map(x=>x.department)).size;
+
+ document.getElementById("mvp1").innerText=leaderboard[0]?.employee||"-";
+ document.getElementById("mvp2").innerText=leaderboard[1]?.employee||"-";
+ document.getElementById("mvp3").innerText=leaderboard[2]?.employee||"-";
+
+ const lb=document.getElementById("leaderboard");
+ lb.innerHTML="";
+ leaderboard.forEach((x,i)=>{
+   const rank=i===0?"💎":i===1?"🥇":i===2?"🥉":(i+1);
+   lb.innerHTML+=`<tr><td>${rank}</td><td>${x.employee}</td><td>${x.department}</td><td>${x.score.toFixed(2)}</td><td>${x.status}</td></tr>`;
+ });
+
+ const dept={};
+ data.forEach(x=>{
+   if(!dept[x.department]) dept[x.department]=[];
+   dept[x.department].push(Number(x.score||0));
+ });
+ const deptRank=Object.entries(dept).map(([d,s])=>({d,a:s.reduce((x,y)=>x+y,0)/s.length})).sort((a,b)=>b.a-a.a);
+ const dt=document.getElementById("deptTable");
+ dt.innerHTML="";
+ deptRank.forEach((x,i)=>dt.innerHTML+=`<tr><td>${i+1}</td><td>${x.d}</td><td>${x.a.toFixed(2)}</td></tr>`);
+
+ const c=document.getElementById("comments");
+ c.innerHTML="";
+ data.filter(x=>x.comment).slice(-10).reverse().forEach(x=>{
+   c.innerHTML+=`<p><b>${x.employee}</b> (${x.month})<br>${x.comment}</p><hr>`;
+ });
+}
+</script>
+</body>
+</html>
